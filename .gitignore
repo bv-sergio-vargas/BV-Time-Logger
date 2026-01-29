@@ -205,3 +205,14 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# BV-Time-Logger Project Specific
+logs/
+*.bak
+temp/
+tmp/
+config/secrets.py
+.env.local
+.env.*.local
+*.pem
+*.key
