@@ -5,6 +5,7 @@ Microsoft Teams Client - Microsoft Graph API integration
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+import pytz
 from src.clients.base_client import BaseAPIClient
 from src.auth.graph_auth import GraphAuthProvider
 
@@ -19,17 +20,19 @@ class TeamsClient(BaseAPIClient):
     
     GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
     
-    def __init__(self, auth_provider: GraphAuthProvider, **kwargs):
+    def __init__(self, auth_provider: GraphAuthProvider, timezone: str = "America/Bogota", **kwargs):
         """
         Initialize Teams client.
         
         Args:
             auth_provider: GraphAuthProvider instance
+            timezone: Timezone for date operations (default: America/Bogota)
             **kwargs: Additional arguments passed to BaseAPIClient
         """
         super().__init__(auth_provider, **kwargs)
         self.base_url = self.GRAPH_BASE_URL
-        logger.info("[TEAMS] TeamsClient initialized")
+        self.timezone = pytz.timezone(timezone)
+        logger.info(f"[TEAMS] TeamsClient initialized with timezone {timezone}")
     
     def get_user_info(self, user_id: str = "me") -> Dict[str, Any]:
         """
@@ -52,16 +55,18 @@ class TeamsClient(BaseAPIClient):
         user_id: str = "me",
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        top: int = 100
+        top: int = 100,
+        paginate: bool = True
     ) -> List[Dict[str, Any]]:
         """
-        Get calendar events for a user within a date range.
+        Get calendar events for a user within a date range with pagination.
         
         Args:
             user_id: User ID or "me" for authenticated user
             start_date: Start date for event range (optional)
             end_date: End date for event range (optional)
-            top: Maximum number of events to return
+            top: Maximum number of events per page
+            paginate: If True, fetch all pages; if False, only first page
             
         Returns:
             List of calendar event dictionaries
@@ -70,10 +75,20 @@ class TeamsClient(BaseAPIClient):
         
         params = {"$top": top}
         
-        # Add date filter if provided
+        # Add date filter if provided (convert to UTC for API)
         if start_date and end_date:
-            start_str = start_date.strftime("%Y-%m-%dT%H:%M:%S")
-            end_str = end_date.strftime("%Y-%m-%dT%H:%M:%S")
+            # Ensure timezone-aware
+            if start_date.tzinfo is None:
+                start_date = self.timezone.localize(start_date)
+            if end_date.tzinfo is None:
+                end_date = self.timezone.localize(end_date)
+            
+            # Convert to UTC for API
+            start_utc = start_date.astimezone(pytz.utc)
+            end_utc = end_date.astimezone(pytz.utc)
+            
+            start_str = start_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            end_str = end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
             params["$filter"] = f"start/dateTime ge '{start_str}' and end/dateTime le '{end_str}'"
         
         logger.info(
@@ -81,11 +96,26 @@ class TeamsClient(BaseAPIClient):
             f"(from {start_date} to {end_date}, limit={top})"
         )
         
-        response = self.get(url, params=params)
-        data = response.json()
+        events = []
+        next_link = url
         
-        events = data.get('value', [])
-        logger.info(f"[TEAMS] Retrieved {len(events)} events")
+        while next_link:
+            if next_link == url:
+                response = self.get(url, params=params)
+            else:
+                # Follow pagination link
+                response = self.get(next_link)
+            
+            data = response.json()
+            events.extend(data.get('value', []))
+            
+            # Check for pagination
+            next_link = data.get('@odata.nextLink') if paginate else None
+            
+            if next_link:
+                logger.debug(f"[TEAMS] Following pagination link (current: {len(events)} events)")
+        
+        logger.info(f"[TEAMS] Retrieved {len(events)} total events")
         
         return events
     
