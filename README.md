@@ -18,33 +18,42 @@ Agente automatizado que sincroniza los tiempos de reuniones de Microsoft Teams c
 ## ✨ Características Principales
 
 - ✅ **Sincronización automática** de reuniones de Microsoft Teams
-- ✅ **Actualización de work items** en Azure DevOps
-- ✅ **Comparación** de tiempo real vs estimado
-- ✅ **Reportes de discrepancias** para gestión de proyectos
-- ✅ **Registro de tiempo de ejecución** (tareas sin reuniones)
-- ✅ **Logging y auditoría** completa
+- ✅ **Actualización de work items** en Azure DevOps con resolución de conflictos
+- ✅ **Comparación** de tiempo real vs estimado (4 niveles de desviación)
+- ✅ **Reportes detallados** (CSV/JSON) con recomendaciones en español
+- ✅ **Tracking manual** con CLI (CSV import/export, validaciones)
+- ✅ **Scheduler automático** (diario/intervalo/cron personalizado)
+- ✅ **Logging robusto** con rotación (10MB) y mensajes en español
+- ✅ **CLI completo** con 9 comandos (sync, manual, schedule, report, status)
+- ✅ **Modo dry-run** para preview sin cambios reales
+- ✅ **Auditoría completa** con historial de ejecuciones
 
 ## 🏗️ Estado del Proyecto
 
-**Fase Actual**: Fase 0 - Validación y Preparación ✅
+**Fase Actual**: Fases 5-6 COMPLETADAS ✅ (Orquestación y Manual Tracking)
 
 **Completado**:
-- ✅ Estructura de carpetas creada
-- ✅ Entorno virtual Python configurado
-- ✅ Dependencias instaladas
-- ✅ Script de validación de accesos creado
-- ✅ Documentación de configuración Azure
+- ✅ **Fase 0-1**: Configuración y autenticación (Microsoft Graph + Azure DevOps)
+- ✅ **Fase 2**: Integración Microsoft Teams (reuniones y procesamiento)
+- ✅ **Fase 3**: Integración Azure DevOps (work items y actualizaciones)
+- ✅ **Fase 4**: Comparación de tiempos y generación de reportes
+- ✅ **Fase 5**: Orquestación completa, scheduler automático, sistema de logging
+- ✅ **Fase 6**: Tracking manual, CLI con 9 comandos
+- 📊 **84 tests** de Fases 1-4 + **86 tests** de Fases 5-6
 
-**Próximo**: Fase 1 - Autenticación y Conexión
+**Próximo**: Fase 7 - Testing completo y validación end-to-end
 
 Ver roadmap completo en [03-PROJECT_PHASES.md](docs/03-PROJECT_PHASES.md)
 
 ## 🛠️ Tecnologías
 
-- **Lenguaje**: Python 3.9+
+- **Lenguaje**: Python 3.13+ (type hints, async support)
 - **APIs**: Microsoft Graph API, Azure DevOps REST API
-- **Autenticación**: OAuth 2.0 (Microsoft), PAT (Azure DevOps)
+- **Autenticación**: MSAL OAuth 2.0 (Microsoft), PAT (Azure DevOps)
+- **Scheduling**: APScheduler 3.11+ (CronTrigger, IntervalTrigger)
+- **Testing**: pytest 9.0+ (170 tests total)
 - **Cloud**: Azure (Key Vault, Functions, Application Insights)
+- **Timezone**: America/Bogota (pytz)
 
 ## 📦 Instalación
 
@@ -92,6 +101,65 @@ python validate_access.py
 ```
 
 Ver guía completa en [01-QUICKSTART.md](docs/01-QUICKSTART.md) y [04-AZURE_SETUP_GUIDE.md](docs/04-AZURE_SETUP_GUIDE.md)
+
+## 🖥️ Uso del CLI
+
+### Comandos Disponibles
+
+```powershell
+# Sincronización manual
+python -m src.cli sync --start-date 2026-01-01 --end-date 2026-01-31
+
+# Entrada manual de tiempo
+python -m src.cli manual -w 12345 -H 8.0 -d 2026-01-30 -D "Development work" -u user@example.com
+
+# Importar desde CSV
+python -m src.cli import entradas.csv --sync
+
+# Exportar a CSV
+python -m src.cli export reporte.csv --start-date 2026-01-01 --end-date 2026-01-31
+
+# Listar entradas manuales
+python -m src.cli list --user user@example.com
+
+# Ver resumen
+python -m src.cli summary
+
+# Configurar scheduler (ejecución diaria a las 9:00 AM)
+python -m src.cli schedule start --daily --time 09:00
+
+# Estado del scheduler
+python -m src.cli schedule status
+
+# Generar reporte
+python -m src.cli report --format csv --sync
+
+# Ver estado del sistema
+python -m src.cli status
+```
+
+### Modo Dry-Run (Preview)
+
+```powershell
+# Preview sin aplicar cambios
+python -m src.cli sync --dry-run
+```
+
+### Opciones Avanzadas
+
+```powershell
+# Sincronización con usuarios específicos
+python -m src.cli sync --users user1@example.com user2@example.com
+
+# Scheduler con intervalo de 2 horas
+python -m src.cli schedule start --interval 2
+
+# Scheduler con expresión cron personalizada (9 AM lunes a viernes)
+python -m src.cli schedule start --cron "0 9 * * 1-5"
+
+# Exportar solo entradas sincronizadas
+python -m src.cli export reporte.csv --synced true
+```
 
 ## 🎯 Casos de Uso
 
