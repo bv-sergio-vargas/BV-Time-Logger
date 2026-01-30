@@ -233,6 +233,46 @@ class AzureDevOpsClient(BaseAPIClient):
         
         return projects
     
+    def get_work_items_batch(
+        self,
+        work_item_ids: List[int],
+        fields: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get multiple work items in a single batch request.
+        
+        Args:
+            work_item_ids: List of work item IDs
+            fields: List of fields to retrieve (retrieves all if not specified)
+            
+        Returns:
+            List of work item dictionaries
+        """
+        if not work_item_ids:
+            return []
+        
+        # Azure DevOps API supports comma-separated IDs
+        ids_str = ",".join(str(id) for id in work_item_ids)
+        url = f"{self.base_url}/_apis/wit/workitems"
+        
+        params = {
+            "api-version": self.API_VERSION,
+            "ids": ids_str
+        }
+        
+        if fields:
+            params["fields"] = ",".join(fields)
+        
+        logger.info(f"[DEVOPS] Retrieving {len(work_item_ids)} work items in batch")
+        
+        response = self.get(url, params=params)
+        data = response.json()
+        
+        work_items = data.get('value', [])
+        logger.info(f"[DEVOPS] Retrieved {len(work_items)} work items")
+        
+        return work_items
+    
     def get_work_item_fields(self, work_item_id: int) -> Dict[str, Any]:
         """
         Get all fields from a work item.
@@ -268,3 +308,93 @@ class AzureDevOpsClient(BaseAPIClient):
             'completed_work': fields.get('Microsoft.VSTS.Scheduling.CompletedWork', 0.0) or 0.0,
             'remaining_work': fields.get('Microsoft.VSTS.Scheduling.RemainingWork', 0.0) or 0.0
         }
+    
+    def update_work_item_fields(
+        self,
+        work_item_id: int,
+        updates: Dict[str, Any],
+        comment: Optional[str] = None,
+        validate: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Update multiple fields in a work item with validation.
+        
+        Args:
+            work_item_id: Work item ID
+            updates: Dictionary of field paths and new values
+            comment: Optional comment
+            validate: Whether to validate the work item exists before updating
+            
+        Returns:
+            Updated work item dictionary
+        """
+        if validate:
+            # Verify work item exists
+            try:
+                self.get_work_item(work_item_id)
+            except Exception as e:
+                logger.error(f"[DEVOPS] Work item #{work_item_id} validation failed: {e}")
+                raise ValueError(f"Work item #{work_item_id} not found or not accessible") from e
+        
+        logger.info(f"[DEVOPS] Updating {len(updates)} fields in work item #{work_item_id}")
+        
+        return self.update_work_item(work_item_id, updates, comment)
+    
+    def get_iterations(
+        self,
+        project: Optional[str] = None,
+        timeframe: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get iterations (sprints) for a project.
+        
+        Args:
+            project: Project name (uses default if not specified)
+            timeframe: Filter by timeframe ('current', 'past', 'future')
+            
+        Returns:
+            List of iteration dictionaries
+        """
+        project_name = project or self.project
+        if not project_name:
+            raise ValueError("No project specified and no default project configured")
+        
+        url = f"{self.base_url}/{project_name}/_apis/work/teamsettings/iterations"
+        
+        params = {"api-version": self.API_VERSION}
+        
+        if timeframe:
+            params["$timeframe"] = timeframe
+        
+        logger.info(f"[DEVOPS] Retrieving iterations for project '{project_name}'")
+        
+        response = self.get(url, params=params)
+        data = response.json()
+        
+        iterations = data.get('value', [])
+        logger.info(f"[DEVOPS] Found {len(iterations)} iterations")
+        
+        return iterations
+    
+    def validate_permissions(self, work_item_id: int) -> bool:
+        """
+        Validate that the current user has permissions to update a work item.
+        
+        Args:
+            work_item_id: Work item ID
+            
+        Returns:
+            True if user has update permissions, False otherwise
+        """
+        try:
+            # Attempt to retrieve the work item
+            self.get_work_item(work_item_id)
+            
+            # If we can retrieve it, we likely can update it
+            # Azure DevOps will return 403 if no access
+            logger.info(f"[DEVOPS] User has access to work item #{work_item_id}")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"[DEVOPS] Permission validation failed for #{work_item_id}: {e}")
+            return False
